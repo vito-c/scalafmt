@@ -36,6 +36,7 @@ inThisBuild(
     crossScalaVersions := List(scala213, scala212, scala211),
     resolvers += Resolver.sonatypeRepo("releases"),
     libraryDependencies ++= List(
+      "com.lihaoyi" %% "pprint" % "0.5.6",
       scalatest.value % Test,
       scalacheck % Test,
       scalametaTestkit % Test

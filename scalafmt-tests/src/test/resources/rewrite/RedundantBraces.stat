@@ -25,6 +25,46 @@ object a {
   def z(i: Int): Int =
     4
 }
+<<< add braces def
+object a {
+  def x(oi: Option[Int]): Option[Int] =
+    oi.map { x =>
+      x + 5
+    }
+}
+>>>
+object a {
+  def x(oi: Option[Int]): Option[Int] = {
+    oi.map { x =>
+      x + 5
+    }
+  }
+}
+<<< add braces def single line
+object a { def superduperlongfunctionname(reallylongparamtername: Option[Int]) = reallylongparamtername.map { superduperlongiteratorname => superduperlongiteratorname + 1 } }
+>>>
+object a {
+  def superduperlongfunctionname(reallylongparamtername: Option[Int]) = {
+    reallylongparamtername.map {
+      superduperlongiteratorname => superduperlongiteratorname + 1 
+    }
+  }
+}
+
+<<< add braces def complex line
+object a { def findAccountByAPIKey(apiKey: APIKey) = byKeyCache.get(apiKey) match { case None => delegate.findAccountByAPIKey(apiKey) map { _ map(_) tap (add(apiKey, _)) unsafePerformIO(foo) } } }
+>>>
+object a {
+  def findAccountByAPIKey(apiKey: APIKey) = {
+    byKeyCache.get(apiKey) match {
+      case None =>
+        delegate.findAccountByAPIKey(apiKey) map {
+          _ map (_) tap (add(apiKey, _)) unsafePerformIO (foo)
+        }
+    }
+  }
+}
+
 <<< basic (format:off)
 object a {
 // format: off

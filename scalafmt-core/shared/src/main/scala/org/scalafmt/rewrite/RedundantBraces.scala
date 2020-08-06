@@ -80,11 +80,23 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
     t.parts.tail.zip(t.args).foreach {
       case (Lit.String(value), arg: Term.Name)
           if !isIdentifierAtStart(value) && !shouldTermBeEscaped(arg) =>
+// <<<<<<< Updated upstream
         val open = prevToken(arg.tokens.head)
+        pprint.log(openBrace)
         if (open.is[LeftBrace]) {
           val close = nextToken(arg.tokens.head)
           if (close.is[RightBrace])
             ctx.addPatchSet(TokenPatch.Remove(open), TokenPatch.Remove(close))
+        // val openBrace = prevToken(arg.tokens.head)
+        // pprint.log(openBrace)
+        // val closeBrace = nextToken(arg.tokens.head)
+        // (openBrace, closeBrace) match {
+        //   case (LeftBrace(), RightBrace()) =>
+        //     ctx.addPatchSet(
+        //       TokenPatch.Remove(openBrace),
+        //       TokenPatch.Remove(closeBrace)
+        //     )
+        //   case _ =>
         }
       case _ =>
     }
@@ -98,8 +110,35 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
       case t: Init =>
         processInit(t)
 
+      case d: Defn.Def =>
+        def isWrapped(open:Token, close:Token) = {
+          close.is[RightBrace] && open.is[LeftBrace]
+        }
+        println(s"linespan: ${getTermLineSpan(d)}")
+        val open = d.body.tokens.head
+        val close = d.body.tokens.last
+        pprint.log(open.structure)
+        pprint.log(close.structure)
+        if (getTermLineSpan(d) >= settings.maxLines && !isWrapped(open,close)) {
+          println(d.structure)
+          implicit val builder = Seq.newBuilder[TokenPatch]
+          builder += TokenPatch.AddLeft(d.body.tokens.head, "{", keepTok = true)
+          builder += TokenPatch.AddRight(d.body.tokens.last, "}", keepTok = true)
+          ctx.addPatchSet(builder.result(): _*)
+        }
+      //   println("Process Defn")
+      //   println(s"linespan: ${getTermLineSpan(d.body)}")
+      //   println(s"len: ${d.body.tokens.length}")
+      //   println(s"coutn: ${d.body.tokens.end - d.body.tokens.start}")
+
       case b: Term.Block =>
-        processBlock(b, okToRemoveBlock)
+        println(s"linespan: ${getTermLineSpan(b)}")
+
+        // if (getTermLineSpan(b) >= settings.maxLines) {
+        //   println("matchy matccch")
+        // } else {
+          processBlockRemoveBraces(b, okToRemoveBlock)
+        // }
 
       case t: Term.Interpolate if settings.stringInterpolation =>
         processInterpolation(t)
@@ -120,8 +159,15 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
       }
     }
   }
+  // // Add missing function brace back in
+  // case f: Term.Function
+  //     if okToRemoveAroundFunctionBody(f.body, true) &&
+  //       !f.tokens.last.is[Token.RightBrace] &&
+  //       (ctx.style.activeForEdition_2020_01 || getTermLineSpan(f) > 0) =>
+  //       ???
 
-  private def processSingleArgApply(arg: Term, rparen: Token): Unit =
+  private def processSingleArgApply(arg: Term, rparen: Token): Unit = {
+    println("processing single arg lamduh")
     arg match {
       // single-arg apply of a lambda
       // a(b => { c; d }) change to a { b => c; d }
@@ -142,8 +188,10 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
         }
       case _ =>
     }
+  }
 
-  private def processMultiArgApply(args: Seq[Term]): Unit =
+  private def processMultiArgApply(args: Seq[Term]): Unit = {
+    println("processing multi arg lamduh")
     args.foreach {
       // multi-arg apply of single-stat lambdas
       // a(b => { c }, d => { e }) change to a(b => c, d => e)
@@ -160,12 +208,26 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
           ctx.removeLFToAvoidEmptyLine(rbrace)
           ctx.addPatchSet(builder.result(): _*)
         }
+<<<<<<< Updated upstream
       case b: Term.Block =>
         processBlock(b, okToRemoveBlockWithinApply)
+=======
+      case b: Term.Block if ctx.style.activeForEdition_2020_01 =>
+        processBlockRemoveBraces(b, okToRemoveBlockWithinApply)
+>>>>>>> Stashed changes
       case _ =>
     }
+  }
 
-  private def processBlock(b: Term.Block, check: Term.Block => Boolean): Unit =
+  private def processBlockAddBraces(b: Term.Block): Unit = {
+    println("processing add block")
+  }
+  private def processBlockRemoveBraces(
+      b: Term.Block,
+      check: Term.Block => Boolean
+  ): Unit = {
+    println("processing remove block")
+
     b.tokens.headOption.filter(_.is[LeftBrace]).foreach { open =>
       val close = b.tokens.last
       if (close.is[RightBrace] && check(b)) {
@@ -206,6 +268,7 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
         }
       }
     }
+  }
 
   private def okToRemoveBlock(b: Term.Block): Boolean = {
     b.parent.exists {

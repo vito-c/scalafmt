@@ -106,6 +106,7 @@ class FormatWriter(formatOps: FormatOps) {
   }
 
   private def replaceRedundantBraces(locations: Array[FormatLocation]): Unit = {
+    pprint.log("replaceRedundantBraces")
     // will map closing brace to opening brace and its line offset
     val lookup = mutable.Map.empty[Int, (Int, Int)]
 
@@ -115,11 +116,13 @@ class FormatWriter(formatOps: FormatOps) {
       val loc = locations(idx)
       val tok = loc.formatToken
       val state = loc.state
+      // pprint.log(tok)
       tok.left match {
         case rb: T.RightBrace => // look for "foo { bar }"
           tok.meta.leftOwner match {
             case b: Term.Block if b.parent.exists {
                   case ta: Term.Apply if ta.tokens.last eq rb =>
+                    pprint.log("single line statement")
                     TreeOps.isSingleElement(ta.args, b)
                   case _ => false
                 } && RedundantBraces.canRewriteWithParens(b) =>
@@ -133,9 +136,10 @@ class FormatWriter(formatOps: FormatOps) {
               val inParentheses = loc.style.spaces.inParentheses
               // remove space before "{"
               val prevBegState =
-                if (0 == idx || (state.prev.split.modExt.mod ne Space))
+                if (0 == idx || (state.prev.split.modExt.mod ne Space)) {
+                  pprint.log(state.prev)
                   state.prev
-                else {
+                } else {
                   val prevloc = locations(idx - 1)
                   val prevState =
                     state.prev.copy(split = state.prev.split.withMod(NoSplit))
@@ -143,6 +147,8 @@ class FormatWriter(formatOps: FormatOps) {
                     shift = prevloc.shift - 1,
                     state = prevState
                   )
+                  val s: State = prevState
+                  println(s"sttate: ${s.toString}")
                   prevState
                 }
 
@@ -228,6 +234,7 @@ class FormatWriter(formatOps: FormatOps) {
                 topLevelLastToHeadTokens.get(i).exists {
                   isMultilineTopLevelStatement(locations, _)
                 }
+            pprint.log("INSERT NEW LINE")
             val newline = if (isDouble) "\n\n" else "\n"
             if (nl.noIndent) newline
             else newline + getIndentation(state.indentation)
@@ -1285,4 +1292,12 @@ object FormatWriter {
 
   private val leadingPipeSpace = compileStripMarginPattern('|')
 
+}
+
+object a {
+  def superduperlongfunctionname(reallylongparamtername: Option[Int]) = {
+    reallylongparamtername.map { superlongiteratornameisreallylong =>
+      superlongiteratornameisreallylong + 1
+    }
+  }
 }
