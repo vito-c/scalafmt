@@ -46,6 +46,9 @@ object RedundantBraces extends Rewrite {
       case x => nested || x.isDefined
     })
 
+  def isWrapped(open:Token, close:Token) = {
+    close.is[RightBrace] && open.is[LeftBrace]
+  }
 }
 
 /**
@@ -82,10 +85,11 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
           if !isIdentifierAtStart(value) && !shouldTermBeEscaped(arg) =>
 // <<<<<<< Updated upstream
         val open = prevToken(arg.tokens.head)
-        pprint.log(openBrace)
+        pprint.log(open)
         if (open.is[LeftBrace]) {
           val close = nextToken(arg.tokens.head)
           if (close.is[RightBrace])
+
             ctx.addPatchSet(TokenPatch.Remove(open), TokenPatch.Remove(close))
         // val openBrace = prevToken(arg.tokens.head)
         // pprint.log(openBrace)
@@ -111,15 +115,12 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
         processInit(t)
 
       case d: Defn.Def =>
-        def isWrapped(open:Token, close:Token) = {
-          close.is[RightBrace] && open.is[LeftBrace]
-        }
         println(s"linespan: ${getTermLineSpan(d)}")
         val open = d.body.tokens.head
         val close = d.body.tokens.last
         pprint.log(open.structure)
         pprint.log(close.structure)
-        if (getTermLineSpan(d) >= settings.maxLines && !isWrapped(open,close)) {
+        if (getTermLineSpan(d) >= settings.maxLines && !RedundantBraces.isWrapped(open,close)) {
           println(d.structure)
           implicit val builder = Seq.newBuilder[TokenPatch]
           builder += TokenPatch.AddLeft(d.body.tokens.head, "{", keepTok = true)
@@ -208,13 +209,9 @@ class RedundantBraces(implicit ctx: RewriteCtx) extends RewriteSession {
           ctx.removeLFToAvoidEmptyLine(rbrace)
           ctx.addPatchSet(builder.result(): _*)
         }
-<<<<<<< Updated upstream
       case b: Term.Block =>
-        processBlock(b, okToRemoveBlockWithinApply)
-=======
-      case b: Term.Block if ctx.style.activeForEdition_2020_01 =>
+        // processBlock(b, okToRemoveBlockWithinApply)
         processBlockRemoveBraces(b, okToRemoveBlockWithinApply)
->>>>>>> Stashed changes
       case _ =>
     }
   }

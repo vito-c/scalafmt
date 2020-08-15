@@ -45,8 +45,8 @@ object a { def superduperlongfunctionname(reallylongparamtername: Option[Int]) =
 >>>
 object a {
   def superduperlongfunctionname(reallylongparamtername: Option[Int]) = {
-    reallylongparamtername.map {
-      superduperlongiteratorname => superduperlongiteratorname + 1 
+    reallylongparamtername.map { superduperlongiteratorname =>
+      superduperlongiteratorname + 1
     }
   }
 }

@@ -75,7 +75,12 @@ class FormatWriter(formatOps: FormatOps) {
       entry.formatWhitespace
     }
 
-    sb.toString()
+    val ts = sb.toString
+    println("=======================================================")
+    println(ts)
+    println("=======================================================")
+    // sb.toString()
+    ts
   }
 
   def getFormatLocations(state: State): FormatLocations = {
@@ -96,22 +101,218 @@ class FormatWriter(formatOps: FormatOps) {
       }
     iter(state, 0)
 
-    if (
-      initStyle.rewrite.rules.contains(RedundantBraces) &&
-      !initStyle.rewrite.redundantBraces.parensForOneLineApply.contains(false)
-    )
-      replaceRedundantBraces(result)
+    val things =
+      if (
+        initStyle.rewrite.rules.contains(RedundantBraces) &&
+        !initStyle.rewrite.redundantBraces.parensForOneLineApply.contains(false)
+      ) {
+        val r = maintainMinBraces(result)
+        replaceRedundantBraces(r)
+        r
+      } else {
+        result
+      }
 
-    new FormatLocations(result)
+    new FormatLocations(things)
+  }
+
+  private def maintainMinBraces(
+      locations: Array[FormatLocation]
+  ): Array[FormatLocation] = {
+    var result = locations
+    var idx = 0
+    while (idx < locations.length) {
+      val sloc = locations(idx)
+      val tok: FormatToken = sloc.formatToken
+      val state = sloc.state
+      tok.left match {
+        case _: T.KwDef => // look for def blah = { foo } convert from def blah = foo
+          tok.meta.leftOwner match {
+            case d: Defn.Def =>
+              val open = d.body.tokens.head
+              val close = d.body.tokens.last
+              val bodylen = d.body.tokens.length
+              pprint.log(open.text)
+              pprint.log(close.text)
+              if (!RedundantBraces.isWrapped(open, close)) {
+                pprint.log("do replacement")
+                def eqtok(eqt: Token) = {
+                  eqt match {
+                    case _: T.Equals => true
+                    case _ => false
+                  }
+                }
+                var idp = idx
+                // skip to equals
+                while (
+                  !eqtok(
+                    locations(idx).formatToken.left
+                  ) && idx < locations.length
+                ) {
+                  idx += 1
+                }
+
+                val yloc = locations(idx)
+                val ystate = yloc.state
+                val prevBegState =
+                  if (0 == idx || (ystate.prev.split.modExt.mod ne Space)) {
+                    pprint.log("REUSE Y STATE")
+                    ystate.prev
+                  } else {
+                    pprint.log("IN THE NEW Y")
+                    val prevloc = locations(idx - 1)
+                    val prevState =
+                      ystate.prev.copy(split =
+                        ystate.prev.split.withMod(Space)
+                      )
+                    locations(idx - 1) = prevloc.copy(
+                      shift = prevloc.shift - 1,
+                      state = prevState
+                    )
+                    val s: State = prevState
+                    prevState
+                  }
+                val split = ystate.split.withMod(Newline)
+                val iloc = yloc.copy(
+                  replace = "{",
+                  shift = yloc.shift,
+                  state = ystate.copy(prev = prevBegState, split = split)
+                )
+                
+               val iploc = yloc.copy(
+                 formatToken = yloc.formatToken.copy(right = iloc.formatToken.left),
+                 state = prevBegState.copy(split = prevBegState.prev.split.withMod(Space)))
+                // add the open brace
+
+                // go to the end of the bodylen
+                val idc = idp + bodylen + 3
+                val zloc = locations(idc)
+                val zstate = zloc.state
+                pprint.pprintln(s"zloc: ${zloc.formatToken.left} right: ${zloc.formatToken.right}")
+
+                val prevBegState2 =
+                  if (0 == idc || (zstate.prev.split.modExt.mod ne Space)) {
+                    pprint.log("REUSE Z STATE")
+                    zstate.prev
+                  } else {
+                    pprint.log("IN THE NEW Z")
+                    val prevloc = locations(idc - 1)
+                    val prevState =
+                      zstate.prev.copy(split =
+                        zstate.prev.split.withMod(NoSplit)
+                      )
+                    locations(idc - 1) = prevloc.copy(
+                      shift = prevloc.shift - 1,
+                      state = prevState
+                    )
+                    val s: State = prevState
+                    prevState
+                  }
+                val split2 = prevBegState2.split.withMod(Newline)
+                val split3 = prevBegState2.split.withMod(NewlineT())
+                val iiloc = zloc.copy(
+                  replace = "}",
+                  shift = zloc.shift,
+                )
+                pprint.log(zloc.state.split)
+                val iiploc = zloc.copy(
+                  formatToken = iiloc.formatToken.copy(right = iiloc.formatToken.left),
+                  replace = "}",
+                  shift = zloc.shift - 1,
+                  // state = zloc.state.copy(split = zloc.state.split.withMod(NewlineT()))
+                  state = prevBegState.copy(split = split2)
+                  )
+
+                // add the closing brace
+                result = locations.slice(0, idx) ++ Array(iploc, iloc) ++ locations.slice(idx + 1,idc) ++ Array(iiploc, iiloc)++ locations.slice(idc + 1, locations.size)
+
+                // val prevState =
+                //   state.prev.copy(split = state.prev.split.withMod(NoSplit))
+                //================================================
+                // val prevBegState = if (0 == idx || (state.prev.split.modExt.mod ne Space)) {
+                //     pprint.log("reuse prev end state")
+                //     state.prev
+                //   } else {
+                //     pprint.log("new prev end state")
+                //     val prevloc = locations(idx + 1)
+                //     val prevState =
+                //       state.prev.copy(split = state.prev.split.withMod(NoSplit))
+                //     locations(idx + 1) = prevloc.copy(
+                //       shift = prevloc.shift,
+                //       state = prevState
+                //     )
+                //     val s: State = prevState
+                //     prevState
+                //   }
+                //
+                //     pprint.log(locations.length)
+                //     val locy = locations(idx)
+                //     val split = state.split.withMod(NewlineT())
+                //     pprint.log(s"${locy.formatToken.left.text}")
+                //     pprint.log(s"${locy.formatToken.right.text}")
+                //     pprint.log(loc.shift)
+                //     // locy.copy
+                //     //
+                //     //   )
+                //
+                //     locations(idx) = locy.copy(
+                //       replace = locy.formatToken.left.text + " {",
+                //       shift = loc.shift,// + 3,
+                //       state = state.copy(prev = prevBegState, split = split)
+                //     )
+                //     pprint.log(idx)
+                //     pprint.log(idp)
+                //     pprint.log(bodylen)
+                //     pprint.log(locations.length)
+                //     mkString(prevBegState.copy())
+                //     idx = idp + bodylen + 3
+                //   //================================================
+                //
+                //   val locr = locations(idx)
+                // val prevBegState2 =
+                //   if (0 == idx || (prevBegState.prev.split.modExt.mod ne Space)) {
+                //     pprint.log("reuse prev2 end state")
+                //     prevBegState.prev
+                //   } else {
+                //     pprint.log("new prev2 end state")
+                //     val prevloc = locations(idx + 1)
+                //     pprint.pprintln(prevloc.formatToken.left.text)
+                //     val prevState =
+                //       prevBegState.prev.copy(split = prevBegState.prev.split.withMod(NewlineT()))
+                //     locations(idx) = prevloc.copy(
+                //       shift = prevloc.shift,
+                //       state = prevState
+                //     )
+                //     val s: State = prevState
+                //     prevState
+                //   }
+                //     val locz = locations(idx)
+                //     val split2 = prevBegState.split.withMod(NewlineT())
+                //     locations(idx) = locz.copy(
+                //       replace = d.body.tokens.last.text + "}",
+                //       shift = loc.shift,
+                //       state = prevBegState.copy(prev = prevBegState, split = split2)
+                //     )
+                //
+
+              }
+            case _ =>
+          }
+        case _ =>
+      }
+      idx += 1
+    }
+    result
   }
 
   private def replaceRedundantBraces(locations: Array[FormatLocation]): Unit = {
     pprint.log("replaceRedundantBraces")
     // will map closing brace to opening brace and its line offset
     val lookup = mutable.Map.empty[Int, (Int, Int)]
+    var idx = 0
 
     // iterate backwards, to encounter closing braces first
-    var idx = locations.length - 1
+    idx = locations.length - 1
     while (0 <= idx) {
       val loc = locations(idx)
       val tok = loc.formatToken
@@ -119,11 +320,16 @@ class FormatWriter(formatOps: FormatOps) {
       // pprint.log(tok)
       tok.left match {
         case rb: T.RightBrace => // look for "foo { bar }"
+
+          // i don't think we need to worry  about this as it
+          // is useeedd for  chaning curly to paren???
           tok.meta.leftOwner match {
             case b: Term.Block if b.parent.exists {
                   case ta: Term.Apply if ta.tokens.last eq rb =>
                     pprint.log("single line statement")
-                    TreeOps.isSingleElement(ta.args, b)
+                    val out = TreeOps.isSingleElement(ta.args, b)
+                    // pprint.log(out)
+                    out
                   case _ => false
                 } && RedundantBraces.canRewriteWithParens(b) =>
               val beg = tokens(matching(rb))
@@ -137,7 +343,6 @@ class FormatWriter(formatOps: FormatOps) {
               // remove space before "{"
               val prevBegState =
                 if (0 == idx || (state.prev.split.modExt.mod ne Space)) {
-                  pprint.log(state.prev)
                   state.prev
                 } else {
                   val prevloc = locations(idx - 1)
@@ -148,7 +353,6 @@ class FormatWriter(formatOps: FormatOps) {
                     state = prevState
                   )
                   val s: State = prevState
-                  println(s"sttate: ${s.toString}")
                   prevState
                 }
 
